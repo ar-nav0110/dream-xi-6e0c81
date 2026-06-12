@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#04140c" />
+<title>7-0 · World Cup Dream Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<!-- ambient stadium atmosphere -->
+<div class="bg" aria-hidden="true">
+  <div class="flood flood-a"></div>
+  <div class="flood flood-b"></div>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+</div>
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <header id="topbar">
+    <div class="brand-wrap" id="brandHome" title="Back to start">
+      <div class="brand">7<span class="dash">–</span>0</div>
+      <div class="brand-kicker">Dream<br />Team</div>
+    </div>
+    <div class="topstats">
+      <span class="stat" title="Perfect 7-0 runs"><i>🏆</i><b id="statSevens">0</b><em>sevens</em></span>
+      <span class="stat" title="Current 7-0 streak"><i>🔥</i><b id="statStreak">0</b><em>streak</em></span>
+      <span class="stat" title="Best streak"><i>⭐</i><b id="statBest">0</b><em>best</em></span>
+    </div>
+  </header>
+
+  <!-- ===== SCREEN: SETUP ===== -->
+  <section id="screen-setup" class="screen active">
+    <div class="setup-wrap">
+      <div class="kicker"><span>★</span> World Cup · Dream Team Builder <span>★</span></div>
+      <h1 class="big-title">Build the dream team.<br />Close it out <span class="hl">7–0</span>.</h1>
+      <p class="sub">Pick a formation and a style, then draft your XI: each roll deals a real World Cup squad — take one player, place him, roll again. Eleven rolls, eleven legends. Then survive seven matches unbeaten.</p>
+
+      <div class="setup-card">
+        <div class="setup-grid">
+          <label>Formation
+            <select id="selFormation"></select>
+          </label>
+          <label>Style
+            <select id="selStyle"></select>
+          </label>
+          <label>Mode
+            <select id="selMode">
+              <option value="classic">Classic — ratings shown</option>
+              <option value="almanac">Almanac — ratings hidden</option>
+            </select>
+          </label>
+        </div>
+        <button class="btn primary big" id="btnStartDraft">🎲 Start the draft</button>
+      </div>
+
+      <details class="howto">
+        <summary>How to play</summary>
+        <ol>
+          <li>Choose your <b>formation</b>, <b>tactical style</b>, and <b>mode</b> (Classic shows ratings, Almanac hides them).</li>
+          <li>Each <b>roll</b> deals one real national squad (country + World Cup year). Pick <b>one</b> player and tap a glowing slot to place him.</li>
+          <li>A new squad is dealt for the next slot. <b>Eleven rolls</b> fill the whole XI.</li>
+          <li>Don't like the squad you rolled? Use a <b>swap</b> to change the country or year — <b>3 swaps</b> per run, and they don't cost you a pick.</li>
+          <li>Slots only accept compatible positions. Out-of-position players (<span class="oop">~</span>) lose rating.</li>
+          <li>Fill all 11, then <b>Simulate</b>: 3 group games + Round of 16, QF, SF, Final.</li>
+          <li>Win all seven and you close it <b class="hl">7–0</b> — the rarest, most shareable result.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== SCREEN: DRAFT ===== -->
+  <section id="screen-draft" class="screen">
+    <div class="build-top">
+      <div class="draft-meta">
+        <div class="meta-chip">🎲 Roll <b id="rollNow">1</b><span>/11</span></div>
+        <div class="meta-chip">🔄 Swaps <b id="swapsLeft">3</b></div>
+        <div class="meta-chip alt" id="setupChip">4-3-3 · Balanced</div>
+      </div>
+      <div class="build-actions">
+        <button class="btn ghost sm" id="btnRestart">↺ Restart</button>
+        <button class="btn primary" id="btnSimulate" disabled>Simulate ▶</button>
+      </div>
+    </div>
+
+    <div class="build-main">
+      <!-- pitch -->
+      <div class="pitch-col">
+        <div class="pitch" id="pitch"></div>
+        <div class="ovr-bar" id="ovrBar">
+          <span>Overall <b id="ovrTeam">–</b></span>
+          <span>ATT <b id="ovrAtt">–</b></span>
+          <span>MID <b id="ovrMid">–</b></span>
+          <span>DEF <b id="ovrDef">–</b></span>
+        </div>
+      </div>
+
+      <!-- current rolled squad -->
+      <div class="pool-col">
+        <div class="pool-head">
+          <div class="pool-team" id="poolTeam">—</div>
+        </div>
+        <div class="swap-row">
+          <button class="btn ghost sm" id="btnSwapCountry">↺ Country <span class="skips">(<b id="skipsA">3</b>)</span></button>
+          <button class="btn ghost sm" id="btnSwapYear">↺ Year <span class="skips">(<b id="skipsB">3</b>)</span></button>
+        </div>
+        <p class="pool-hint" id="poolHint">Tap a player, then tap a glowing slot to place him.</p>
+        <div class="pool-list" id="poolList"></div>
+        <div class="pool-done" id="poolDone" hidden>
+          <div class="done-tick">✅</div>
+          <div>Squad complete — all 11 placed.</div>
+          <small>Hit <b>Simulate</b> to play the World Cup.</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SCREEN: SIM ===== -->
+  <section id="screen-sim" class="screen">
+    <div class="sim-wrap">
+      <h2 id="simStage">Group Stage</h2>
+      <div class="sim-matches" id="simMatches"></div>
+      <button class="btn primary big" id="btnSimNext">Play match ▶</button>
+    </div>
+  </section>
+
+  <!-- ===== SCREEN: RESULT ===== -->
+  <section id="screen-result" class="screen">
+    <div class="result-wrap">
+      <div class="result-badge" id="resultBadge">7–0</div>
+      <h2 id="resultHeadline">Champions</h2>
+      <p id="resultSub"></p>
+      <div class="result-record" id="resultRecord"></div>
+      <div class="result-scores" id="resultScores"></div>
+      <div class="result-actions">
+        <button class="btn primary big" id="btnShare">📋 Copy result</button>
+        <button class="btn ghost" id="btnPlayAgain">Play again</button>
+      </div>
+    </div>
+  </section>
+
+  <footer id="botbar">7–0 dream team builder · a fan-made clone of <i>Sete a Zero</i> · stats saved on this device only</footer>
+</div>
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
