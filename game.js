@@ -339,72 +339,235 @@ function startSim() {
     me: powers(), fixtures: buildFixtures(), idx: 0,
     eliminated: false, elimRound: null,
     wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, results: [],
+    cur: null, anim: null, advT: null,
   };
-  renderSimSkeleton();
-  $('btnSimNext').textContent = 'Play match ▶';
-  $('btnSimNext').disabled = false;
   show('screen-sim');
+  runMatch(0);
 }
-function renderSimSkeleton() {
-  $('simStage').textContent = 'World Cup — 7 matches to glory';
-  $('simMatches').innerHTML = sim.fixtures.map((fx, i) =>
-    `<div class="mrow" id="mrow${i}">
-       <div class="round">${fx.label}</div>
-       <div class="side me"><span>Your XI</span><span class="flag">⚽</span></div>
-       <div class="score" id="msc${i}">–</div>
-       <div class="side op"><span class="flag">${fx.opp.f}</span><span>${fx.opp.n}</span></div>
-     </div>`).join('');
-}
-function playNext() {
-  if (sim.eliminated || sim.idx >= sim.fixtures.length) { finishSim(); return; }
-  const fx = sim.fixtures[sim.idx];
-  const { attack, defense } = sim.me;
 
+/* ---- decide the real result (tuned model) ---- */
+function computeMatch(fx) {
+  const { attack, defense } = sim.me;
   let expFor = (attack - fx.str) / 6 + 1.3;
   let expAg = (fx.str - defense) / 6 + 1.15;
   let gf = clamp(Math.round(Math.max(0, expFor + (Math.random() - 0.5) * 1.5)), 0, 7);
   let ga = clamp(Math.round(Math.max(0, expAg + (Math.random() - 0.5) * 1.5)), 0, 7);
+  if (gf > ga && Math.random() < 0.10) ga = gf;  // upset floor
 
-  // upset floor: a would-be win is sometimes pegged back to a draw
-  if (gf > ga && Math.random() < 0.10) ga = gf;
-
-  let disp, penText = '', eliminated = false;
-  if (gf > ga) disp = 'win';
-  else if (gf < ga) { disp = 'loss'; if (fx.ko) eliminated = true; }
-  else { // level — knockouts go to penalties
+  let outcome, penText = '', eliminated = false, pens = null;
+  if (gf > ga) outcome = 'win';
+  else if (gf < ga) { outcome = 'loss'; if (fx.ko) eliminated = true; }
+  else {
     if (fx.ko) {
       const pWin = clamp(0.5 + (attack - fx.str) / 55, 0.25, 0.8);
-      if (Math.random() < pWin) { disp = 'draw'; penText = '(advanced on penalties)'; }
-      else { disp = 'loss'; penText = '(lost on penalties)'; eliminated = true; }
-    } else disp = 'draw';
+      const adv = Math.random() < pWin;
+      pens = makeShootout(adv);
+      if (adv) { outcome = 'draw'; penText = `(advanced on penalties ${pens.us}–${pens.them})`; }
+      else { outcome = 'loss'; penText = `(lost on penalties ${pens.us}–${pens.them})`; eliminated = true; }
+    } else outcome = 'draw';
   }
+  return { gf, ga, outcome, penText, eliminated, pens };
+}
+function makeShootout(usWins) {
+  const margins = [[5, 4], [5, 3], [4, 3], [4, 2], [3, 2], [4, 1]];
+  const [w, l] = rnd(margins);
+  const mk = (score) => {
+    const a = [false, false, false, false, false];
+    const order = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5);
+    let s = score; for (const i of order) { if (s > 0) { a[i] = true; s--; } }
+    return a;
+  };
+  return usWins
+    ? { us: w, them: l, usArr: mk(w), themArr: mk(l) }
+    : { us: l, them: w, usArr: mk(l), themArr: mk(w) };
+}
 
-  sim.gf += gf; sim.ga += ga;
-  if (disp === 'win') sim.wins++;
-  else if (disp === 'draw') sim.draws++;   // includes penalty wins — advances but breaks 7–0
+/* ---- match-event timeline ---- */
+const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+function lineupPlayers() { return state.slots.filter(s => s.player).map(s => ({ p: s.player, role: s.role })); }
+function weightedScorer(list) {
+  const wts = list.map(o => ({ o, w: [0.04, 0.7, 2, 5][POS_META[o.role].line] }));
+  let tot = wts.reduce((s, x) => s + x.w, 0), r = Math.random() * tot;
+  for (const x of wts) { r -= x.w; if (r <= 0) return shortName(x.o.p.n); }
+  return shortName(list[0].p.n);
+}
+function randPlayer(list) { return shortName(rnd(list).p.n); }
+function buildEvents(fx, m) {
+  const us = lineupPlayers(), ev = [];
+  for (let k = 0; k < m.gf; k++) ev.push({ min: rint(2, 90), type: 'goal', side: 'us', who: weightedScorer(us) });
+  for (let k = 0; k < m.ga; k++) ev.push({ min: rint(2, 90), type: 'goal', side: 'them', who: fx.opp.n });
+  const cards = rint(0, 4);
+  for (let k = 0; k < cards; k++) {
+    const ours = Math.random() < 0.5;
+    ev.push({ min: rint(12, 89), type: Math.random() < 0.12 ? 'red' : 'yellow', side: ours ? 'us' : 'them', who: ours ? randPlayer(us) : fx.opp.n });
+  }
+  const chances = rint(1, 3);
+  for (let k = 0; k < chances; k++) {
+    const ours = Math.random() < 0.55;
+    ev.push({ min: rint(5, 88), type: 'chance', side: ours ? 'us' : 'them', who: ours ? randPlayer(us) : fx.opp.n });
+  }
+  ev.sort((a, b) => a.min - b.min || (a.type === 'goal' ? -1 : 1));
+  return ev;
+}
+
+/* ---- live playback ---- */
+const MATCH_MS = 13000;
+function cancelAnim() {
+  if (!sim) return;
+  if (sim.anim) { if (sim.anim.raf) cancelAnimationFrame(sim.anim.raf); if (sim.anim.pt) clearTimeout(sim.anim.pt); }
+  if (sim.advT) clearTimeout(sim.advT);
+}
+function runMatch(i) {
+  cancelAnim();
+  sim.idx = i;
+  const fx = sim.fixtures[i];
+  const m = computeMatch(fx);
+  sim.cur = { fx, m, events: buildEvents(fx, m), shown: 0, us: 0, them: 0, htShown: false, ended: false };
+
+  $('simRound').textContent = fx.label;
+  $('simCount').textContent = `Match ${i + 1} / 7`;
+  $('sbThem').textContent = fx.opp.n;
+  $('sbThemFlag').textContent = fx.opp.f;
+  $('sbScore').textContent = '0 – 0';
+  $('simClock').textContent = "0’";
+  $('simBar').style.width = '0%';
+  $('simFeed').innerHTML = '';
+  addFeed({ type: 'kick', min: 0 }, fx);
+  setControls('playing');
+
+  const start = Date.now();
+  sim.anim = {};
+  const loop = () => {
+    const t = Math.min(1, (Date.now() - start) / MATCH_MS);
+    const minute = Math.floor(t * 90);
+    $('simClock').textContent = minute + "’";
+    $('simBar').style.width = (t * 100) + '%';
+    if (!sim.cur.htShown && minute >= 45) { sim.cur.htShown = true; addFeed({ type: 'half', min: 45 }, fx); }
+    while (sim.cur.shown < sim.cur.events.length && sim.cur.events[sim.cur.shown].min <= minute) {
+      revealEvent(sim.cur.events[sim.cur.shown], fx); sim.cur.shown++;
+    }
+    if (t >= 1) endMatchAnim();
+    else sim.anim.raf = requestAnimationFrame(loop);
+  };
+  sim.anim.raf = requestAnimationFrame(loop);
+}
+function revealEvent(ev, fx) {
+  if (ev.type === 'goal') {
+    if (ev.side === 'us') sim.cur.us++; else sim.cur.them++;
+    $('sbScore').textContent = `${sim.cur.us} – ${sim.cur.them}`;
+    const sb = document.querySelector('.scoreboard');
+    if (sb) { sb.classList.remove('goal-flash'); void sb.offsetWidth; sb.classList.add('goal-flash'); }
+  }
+  addFeed(ev, fx);
+}
+function endMatchAnim() {
+  cancelAnim();
+  const { fx, m } = sim.cur;
+  while (sim.cur.shown < sim.cur.events.length) { revealEvent(sim.cur.events[sim.cur.shown], fx); sim.cur.shown++; }
+  $('simClock').textContent = "90’"; $('simBar').style.width = '100%';
+  sim.cur.us = m.gf; sim.cur.them = m.ga; $('sbScore').textContent = `${m.gf} – ${m.ga}`;
+  addFeed({ type: 'ft', min: 90 }, fx);
+  sim.anim = {};
+  if (m.pens) runPens(m.pens, () => postMatch(m));
+  else postMatch(m);
+}
+function runPens(pens, cb) {
+  addFeed({ type: 'penhead' }, sim.cur.fx);
+  const seq = [];
+  for (let k = 0; k < 5; k++) { seq.push(['us', pens.usArr[k]]); seq.push(['them', pens.themArr[k]]); }
+  let k = 0;
+  const step = () => {
+    if (k >= seq.length) {
+      addFeed({ type: 'penend', pens }, sim.cur.fx);
+      sim.anim.pt = setTimeout(cb, 600); return;
+    }
+    const [side, scored] = seq[k++];
+    addFeed({ type: 'pen', side, scored }, sim.cur.fx);
+    sim.anim.pt = setTimeout(step, 430);
+  };
+  sim.anim.pt = setTimeout(step, 550);
+}
+function postMatch(m) {
+  if (sim.cur.ended) return;
+  sim.cur.ended = true;
+  if (m.outcome === 'win') sim.wins++;
+  else if (m.outcome === 'draw') sim.draws++;
   else sim.losses++;
-  sim.results.push({ fx, gf, ga, outcome: disp, penText });
+  sim.gf += m.gf; sim.ga += m.ga;
+  sim.results.push({ fx: sim.cur.fx, gf: m.gf, ga: m.ga, outcome: m.outcome, penText: m.penText });
+  if (m.eliminated) { sim.eliminated = true; sim.elimRound = sim.cur.fx.label; }
 
-  const row = $('mrow' + sim.idx);
-  row.classList.add('played', disp);
-  $('msc' + sim.idx).textContent = `${gf} – ${ga}`;
-  if (penText) {
-    const p = document.createElement('div'); p.className = 'pen'; p.textContent = penText;
-    row.appendChild(p);
+  const last = sim.idx >= sim.fixtures.length - 1;
+  if (sim.eliminated || last) setControls('finished');
+  else { setControls('between'); sim.advT = setTimeout(() => runMatch(sim.idx + 1), 2600); }
+}
+function skipMatch() { cancelAnim(); endMatchAnim(); }
+function skipAll() {
+  cancelAnim();
+  if (sim.cur && !sim.cur.ended) {
+    const m = sim.cur.m;
+    sim.cur.ended = true;
+    if (m.outcome === 'win') sim.wins++; else if (m.outcome === 'draw') sim.draws++; else sim.losses++;
+    sim.gf += m.gf; sim.ga += m.ga;
+    sim.results.push({ fx: sim.cur.fx, gf: m.gf, ga: m.ga, outcome: m.outcome, penText: m.penText });
+    if (m.eliminated) { sim.eliminated = true; sim.elimRound = sim.cur.fx.label; }
   }
+  let i = sim.idx + 1;
+  while (!sim.eliminated && i < sim.fixtures.length) {
+    const fx = sim.fixtures[i], m = computeMatch(fx);
+    if (m.outcome === 'win') sim.wins++; else if (m.outcome === 'draw') sim.draws++; else sim.losses++;
+    sim.gf += m.gf; sim.ga += m.ga;
+    sim.results.push({ fx, gf: m.gf, ga: m.ga, outcome: m.outcome, penText: m.penText });
+    if (m.eliminated) { sim.eliminated = true; sim.elimRound = fx.label; }
+    sim.idx = i; i++;
+  }
+  finishSim();
+}
+function setControls(stage) {
+  const c = $('simControls'); c.innerHTML = '';
+  const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = txt; b.onclick = fn; c.appendChild(b); };
+  if (stage === 'playing') { mk('Skip match ⏭', 'ghost', skipMatch); mk('Skip to result', 'ghost sm', skipAll); }
+  else if (stage === 'between') { mk('Next match ▶', 'primary big', () => runMatch(sim.idx + 1)); mk('Skip to result', 'ghost', skipAll); }
+  else { mk('See result ▶', 'primary big', finishSim); }
+}
 
-  if (eliminated) { sim.eliminated = true; sim.elimRound = fx.label; }
-  sim.idx++;
-
-  const done = sim.eliminated || sim.idx >= sim.fixtures.length;
-  $('btnSimNext').textContent = done ? 'See result ▶' : (sim.idx === 6 ? 'Play the Final ▶' : 'Play match ▶');
+/* ---- commentary feed rendering ---- */
+function feedHTML(ev, fx) {
+  const team = (side) => side === 'us' ? 'Your XI' : (fx ? fx.opp.n : 'Opponent');
+  let ic = '•', tx = '', cls = '';
+  switch (ev.type) {
+    case 'kick': ic = '🟢'; tx = `Kick-off — ${fx.label}.`; break;
+    case 'half': ic = '⏸'; tx = 'Half-time.'; break;
+    case 'ft': ic = '🔔'; tx = 'Full-time.'; break;
+    case 'goal':
+      ic = '⚽'; cls = ev.side === 'us' ? 'g-us' : 'g-them';
+      tx = ev.side === 'us' ? `<b>GOAL!</b> ${ev.who} scores for Your XI!` : `${team('them')} score — ${ev.who}.`;
+      break;
+    case 'yellow': ic = '🟨'; tx = `Yellow card — ${ev.who} (${team(ev.side)}).`; break;
+    case 'red': ic = '🟥'; cls = 'red'; tx = `<b>RED CARD!</b> ${ev.who} (${team(ev.side)}) is off.`; break;
+    case 'chance': ic = '🔸'; tx = `Chance! ${ev.who} (${team(ev.side)}) goes close.`; break;
+    case 'penhead': ic = '🥅'; cls = 'penhead'; tx = '<b>Penalty shootout</b>'; break;
+    case 'pen': ic = ev.scored ? '✅' : '❌'; tx = `${team(ev.side)} — ${ev.scored ? 'scores' : 'misses'}.`; break;
+    case 'penend': ic = '🏁'; cls = 'penhead'; tx = `Shootout: <b>${ev.pens.us}–${ev.pens.them}</b>.`; break;
+  }
+  const min = (ev.min || ev.min === 0) && ['goal', 'yellow', 'red', 'chance', 'kick', 'half', 'ft'].includes(ev.type)
+    ? `<span class="fe-min">${ev.min}’</span>` : `<span class="fe-min"></span>`;
+  return `${min}<span class="fe-ic">${ic}</span><span class="fe-tx ${cls}">${tx}</span>`;
+}
+function addFeed(ev, fx) {
+  const feed = $('simFeed');
+  const div = document.createElement('div');
+  div.className = 'fe fe-' + ev.type;
+  div.innerHTML = feedHTML(ev, fx);
+  feed.insertBefore(div, feed.firstChild);
 }
 
 /* =====================================================
    RESULT
    ===================================================== */
 function finishSim() {
-  const champion = !sim.eliminated && sim.idx >= sim.fixtures.length;
+  cancelAnim();
+  const champion = !sim.eliminated && sim.results.length >= sim.fixtures.length;
   const flawless = champion && sim.wins === 7 && sim.losses === 0 && sim.draws === 0;
 
   const badge = $('resultBadge'), headline = $('resultHeadline'), subEl = $('resultSub');
@@ -448,7 +611,7 @@ function roundShort(label) {
   return 'OUT';
 }
 function shareText() {
-  const champion = !sim.eliminated && sim.idx >= sim.fixtures.length;
+  const champion = !sim.eliminated && sim.results.length >= sim.fixtures.length;
   const flawless = champion && sim.wins === 7 && sim.losses === 0 && sim.draws === 0;
   const head = flawless ? '7–0 🏆 FLAWLESS' : champion ? '🏆 CHAMPIONS' : `OUT · ${roundShort(sim.elimRound)}`;
   const lines = sim.results.map(r => {
@@ -486,7 +649,7 @@ function toast(msg) {
 /* =====================================================
    wire up
    ===================================================== */
-function toSetup() { show('screen-setup'); }
+function toSetup() { cancelAnim(); show('screen-setup'); }
 
 function init() {
   renderStats();
@@ -498,7 +661,6 @@ function init() {
   $('btnSwapYear').addEventListener('click', swapYear);
   $('btnRestart').addEventListener('click', toSetup);
   $('btnSimulate').addEventListener('click', () => { if (!state.slots.some(s => !s.player)) startSim(); });
-  $('btnSimNext').addEventListener('click', playNext);
   $('btnShare').addEventListener('click', () => {
     const txt = shareText();
     if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Result copied!'), () => toast('Copy failed'));

@@ -120,12 +120,34 @@
     </div>
   </section>
 
-  <!-- ===== SCREEN: SIM ===== -->
+  <!-- ===== SCREEN: SIM (live match) ===== -->
   <section id="screen-sim" class="screen">
-    <div class="sim-wrap">
-      <h2 id="simStage">Group Stage</h2>
-      <div class="sim-matches" id="simMatches"></div>
-      <button class="btn primary big" id="btnSimNext">Play match ▶</button>
+    <div class="live-wrap">
+      <div class="live-top">
+        <span class="live-round" id="simRound">Group Match 1</span>
+        <span class="live-count" id="simCount">Match 1 / 7</span>
+      </div>
+
+      <div class="scoreboard">
+        <div class="sb-team us">
+          <span class="sb-flag">⚽</span>
+          <span class="sb-name" id="sbUs">Your XI</span>
+        </div>
+        <div class="sb-mid">
+          <div class="sb-score" id="sbScore">0 – 0</div>
+          <div class="sb-clock" id="simClock">0’</div>
+        </div>
+        <div class="sb-team op">
+          <span class="sb-flag" id="sbThemFlag">🏴</span>
+          <span class="sb-name" id="sbThem">Opponent</span>
+        </div>
+      </div>
+
+      <div class="sb-bar"><div class="sb-bar-fill" id="simBar"></div></div>
+
+      <div class="live-feed" id="simFeed"></div>
+
+      <div class="live-controls" id="simControls"></div>
     </div>
   </section>
 
