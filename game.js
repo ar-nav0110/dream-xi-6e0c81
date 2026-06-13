@@ -189,10 +189,9 @@ function renderPitch() {
       const discTxt = state.mode === 'almanac' ? sl.player.p : eff;
       inner =
         `<div class="disc">${discTxt}</div>
-         <div class="pname">${shortName(sl.player.n)}${mark}</div>
-         <div class="role">${sl.role}</div>`;
+         <div class="pname">${shortName(sl.player.n)}${mark}</div>`;
     } else {
-      inner = `<div class="disc">+</div><div class="role">${sl.role}</div>`;
+      inner = `<div class="disc empty">${sl.role}</div>`;
     }
     el.innerHTML = inner;
     el.addEventListener('click', () => onSlotClick(i));

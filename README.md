@@ -1,43 +1,78 @@
+<div align="center">
+
 # 7–0 · World Cup Dream Team
 
-A fan-made clone of **Sete a Zero (7a0)** — roll real World Cup squads, draft an XI across eras, set a formation + tactic, then simulate 7 matches. Win all seven unbeaten and you close it **7–0**.
+**Draft legends across eras. Survive seven matches. Close it out 7–0.**
 
-Pure static site — HTML/CSS/JS, no build step, no backend, no accounts. Stats save in the browser (`localStorage`).
+A fan-made clone of the viral browser game **[Sete a Zero (7a0)](https://7a0.com.br)** — roll real World Cup squads, draft an XI into a formation, then watch a live 7-match tournament play out. Win all seven unbeaten and you close it **7–0**.
 
-## Files
-- `index.html` — screens (draw → build → sim → result)
-- `styles.css` — pitch + UI, mobile-responsive
-- `game.js` — draft loop, out-of-position penalty, match sim, tournament, stats, share
-- `data.js` — 29 legendary national squads + 8 formations + position metadata
+[![CI](https://github.com/ar-nav0110/dream-xi-6e0c81/actions/workflows/ci.yml/badge.svg)](https://github.com/ar-nav0110/dream-xi-6e0c81/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Deploy: GitHub Pages](https://img.shields.io/badge/deploy-GitHub%20Pages-2ea44f?logo=github)](https://ar-nav0110.github.io/dream-xi-6e0c81/)
+[![Squads](https://img.shields.io/badge/squads-48-blue)](data.js)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#)
+[![Made with](https://img.shields.io/badge/made%20with-HTML%20%C2%B7%20CSS%20%C2%B7%20JS-orange)](#)
 
-## Play locally
-Open `index.html` in a browser. Or serve it:
+**▶ [Play it](https://ar-nav0110.github.io/dream-xi-6e0c81/)** &nbsp;·&nbsp; unlisted, link-only
+
+</div>
+
+---
+
+## Gameplay
+
+1. **Set up** — pick a formation (8 options), a tactical style (Defensive / Balanced / Attacking), and a mode:
+   - **Classic** — player ratings shown.
+   - **Almanac** — ratings hidden; pure World-Cup memory.
+2. **Draft (11 rolls)** — each roll deals one real national squad (country + World Cup year). Take **one** player and place him in a compatible slot. A new squad is dealt for the next slot. Eleven rolls fill the XI.
+3. **Swaps** — don't like the squad you rolled? Use a **swap** to change the country or year. **3 per run**, and they don't cost a pick.
+4. **Position fit** — each slot only accepts compatible positions. Out-of-position players (`~`) lose rating; a #10 can't play fullback, only a keeper goes in goal.
+5. **Simulate** — a live 7-match run plays out (3 group + Round of 16, QF, SF, Final): ticking 0'–90' clock, commentary feed (goals with real scorers, cards, chances), penalty shootouts.
+6. **7–0** — win all seven and you've built a flawless dream team — the rarest, most shareable result. Stats (perfect runs, streak, best) save locally.
+
+## Tech
+
+Pure static **HTML + CSS + vanilla JavaScript**. No build step, no framework, no backend, **zero dependencies**. Deploys to GitHub Pages as-is.
+
+| File | Role |
+|------|------|
+| [`index.html`](index.html) | Markup: setup → draft → live sim → result screens |
+| [`styles.css`](styles.css) | "Stadium Nocturne" theme — pitch, tokens, live scoreboard, responsive |
+| [`game.js`](game.js) | Draft engine, position eligibility, tuned match-sim, tournament, stats |
+| [`data.js`](data.js) | **48 national squads** (real players + positions + ratings), 8 formations, position metadata |
+| [`tools/validate.js`](tools/validate.js) | CI data-integrity checks |
+
+### How the match sim works
+
+A tuned model decides each result from your XI's attack/defense (blended from line ratings + style), versus a rising opponent curve across the 7 rounds, with a per-match upset floor. Knockouts level at 90' go to penalties (which **advance you but count as a draw** — so a perfect **7–0** means seven wins in normal time). The on-screen 90-minute playout is theatre over that predetermined result. Calibrated so a flawless elite build hits 7–0 roughly half the time and weaker squads rarely do.
+
+### Squad data
+
+48 hand-curated national-team squads spanning **1950–2026** (Brazil 1958/1970/1982/2002, Argentina 1986/2022, France 1998/2018, Italy 1982/2006, Netherlands 1974, Hungary 1954, Morocco 2022, and more). Player names and positions are sourced from public records (Wikipedia World Cup squad pages); ratings are an author judgment on a consistent era-relative scale (74–99). For identification / historical reference only.
+
+## Run locally
+
 ```bash
-python3 -m http.server 8000   # then visit http://localhost:8000
+git clone https://github.com/ar-nav0110/dream-xi-6e0c81.git
+cd dream-xi-6e0c81
+python3 -m http.server 8000   # → http://localhost:8000
 ```
 
-## Deploy to GitHub Pages (link-only)
+Or just open `index.html` in a browser.
 
-> GitHub Pages on `*.github.io` is **public by URL** — anyone with the link can open it. There is no free server-side login. "Link-only" here = unlisted: hard-to-guess repo name, not indexed (the page already sends `<meta name="robots" content="noindex,nofollow">`), and you only share the link with people you choose.
+## Deploy (link-only)
 
-1. Create a **new GitHub repo** with a non-obvious name, e.g. `dt-7x0-a9f3`. Keep it **public** (Pages needs public on free tier) — obscurity is the privacy here.
-2. Push these files to the repo root:
-   ```bash
-   git init
-   git add .
-   git commit -m "7-0 dream team game"
-   git branch -M main
-   git remote add origin https://github.com/<you>/dt-7x0-a9f3.git
-   git push -u origin main
-   ```
-3. Repo **Settings → Pages** → Source: `Deploy from a branch` → Branch: `main` / `/ (root)` → Save.
-4. Wait ~1 min. Your link: `https://<you>.github.io/dt-7x0-a9f3/`
-5. Share that link only with players you want.
+GitHub Pages on `*.github.io` is **public by URL** — there is no free server-side gate. "Link-only" here means: a non-obvious repo name, `robots: noindex`, and you only share the link with people you choose. See [SECURITY.md](SECURITY.md) for the full posture.
 
-### Want a real password gate instead?
-Plain GitHub Pages can't truly gate access (all files are downloadable). A client-side passcode only deters casual visitors. For genuine access control, host on **Cloudflare Pages** (free) and add **Cloudflare Access**, or use Netlify/Vercel password protection. Ask and I'll wire one up.
+Settings → Pages → Source: `Deploy from a branch` → `main` / `/ (root)`.
 
-## Tweak the game
-- **Add squads / players** → edit the `SQUADS` array in `data.js` (`{ n: name, p: position, r: rating }`).
-- **Difficulty** → `ROUNDS` strengths in `game.js` (higher = harder, rarer 7–0).
-- **Position penalties** → `penalty()` in `game.js`.
+## Tweak it
+
+- **Add squads / players** → edit the `SQUADS` array in [`data.js`](data.js) (`{ n: name, p: position, r: rating }`). Run `node tools/validate.js` to check.
+- **Difficulty** → `ROUNDS` opponent strengths in [`game.js`](game.js).
+- **Sim pacing** → `MATCH_MS` in [`game.js`](game.js) (default 13000 ms ≈ 90').
+- **Position rules** → `PLAYABLE` map in [`game.js`](game.js).
+
+## License
+
+[MIT](LICENSE). Unofficial, non-commercial fan tribute to *Sete a Zero* — not affiliated with or endorsed by the original. Trademarks belong to their respective owners.

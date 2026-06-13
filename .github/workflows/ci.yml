@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate (syntax + data integrity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: JavaScript syntax check
+        run: |
+          node --check data.js
+          node --check game.js
+          node --check tools/validate.js
+
+      - name: Data integrity check
+        run: node tools/validate.js
+
+      - name: Required files present
+        run: |
+          test -f index.html
+          test -f styles.css
+          test -f LICENSE
+          test -f SECURITY.md
+          echo "all required files present"
