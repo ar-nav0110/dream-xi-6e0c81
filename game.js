@@ -760,6 +760,14 @@ function toast(msg) {
    ===================================================== */
 function toSetup() { cancelAnim(); show('screen-setup'); }
 
+/* ---- how-to-play modal ---- */
+const HELP_SEEN = 'sete_help_seen_v1';
+function openHelp() { $('howModal').hidden = false; document.body.classList.add('modal-open'); }
+function closeHelp() {
+  $('howModal').hidden = true; document.body.classList.remove('modal-open');
+  try { localStorage.setItem(HELP_SEEN, '1'); } catch (e) {}
+}
+
 function init() {
   renderStats();
   initSetupControls();
@@ -777,6 +785,15 @@ function init() {
   });
   $('btnPlayAgain').addEventListener('click', toSetup);
   $('brandHome').addEventListener('click', toSetup);
+
+  // how-to-play modal
+  $('btnHowTo').addEventListener('click', openHelp);
+  $('btnHelpTop').addEventListener('click', openHelp);
+  $('howClose').addEventListener('click', closeHelp);
+  $('howStart').addEventListener('click', closeHelp);
+  $('howModal').addEventListener('click', (e) => { if (e.target === $('howModal')) closeHelp(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('howModal').hidden) closeHelp(); });
+  try { if (!localStorage.getItem(HELP_SEEN)) openHelp(); } catch (e) {}
 }
 
 document.addEventListener('DOMContentLoaded', init);

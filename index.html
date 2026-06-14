@@ -39,6 +39,7 @@
       <div class="brand-kicker">Dream<br />Team</div>
     </div>
     <div class="topstats">
+      <button class="help-btn" id="btnHelpTop" title="How to play" aria-label="How to play">?</button>
       <span class="stat" title="Perfect 7-0 runs"><i>🏆</i><b id="statSevens">0</b><em>sevens</em></span>
       <span class="stat" title="Current 7-0 streak"><i>🔥</i><b id="statStreak">0</b><em>streak</em></span>
       <span class="stat" title="Best streak"><i>⭐</i><b id="statBest">0</b><em>best</em></span>
@@ -67,21 +68,11 @@
             </select>
           </label>
         </div>
-        <button class="btn primary big" id="btnStartDraft">🎲 Start the draft</button>
+        <div class="setup-actions">
+          <button class="btn primary big" id="btnStartDraft">🎲 Start the draft</button>
+          <button class="btn ghost big" id="btnHowTo">📖 How to play</button>
+        </div>
       </div>
-
-      <details class="howto glass">
-        <summary>How to play</summary>
-        <ol>
-          <li>Choose your <b>formation</b>, <b>tactical style</b>, and <b>mode</b> (Classic shows ratings, Almanac hides them).</li>
-          <li>Each <b>roll</b> deals one real national squad (country + World Cup year). Pick <b>one</b> player and tap a glowing slot to place him.</li>
-          <li>A new squad is dealt for the next slot. <b>Eleven rolls</b> fill the whole XI.</li>
-          <li>Don't like the squad you rolled? Use a <b>swap</b> to change the country or year — <b>3 swaps</b> per run, and they don't cost you a pick.</li>
-          <li>Slots only accept compatible positions. Out-of-position players (<span class="oop">~</span>) lose rating.</li>
-          <li>Fill all 11, then <b>Simulate</b>: 3 group games + Round of 16, QF, SF, Final.</li>
-          <li>Win all seven and you close it <b class="hl">7–0</b> — the rarest, most shareable result.</li>
-        </ol>
-      </details>
     </div>
   </section>
 
@@ -196,6 +187,28 @@
   </section>
 
   <footer id="botbar">7–0 dream team builder · <i>self developed project</i> based on existing game idea · stats saved on this device only</footer>
+</div>
+
+<!-- ===== HOW-TO-PLAY MODAL ===== -->
+<div class="modal-overlay" id="howModal" hidden>
+  <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="howTitle">
+    <button class="modal-x" id="howClose" aria-label="Close">✕</button>
+    <div class="modal-kicker">★ The game ★</div>
+    <h2 id="howTitle">How to play <span class="hl">7–0</span></h2>
+    <p class="modal-lead">Build a World Cup dream team by drafting real legends from across every era, then take them through a seven-match knockout run. Win all seven unbeaten and you close it <b class="hl">7–0</b> — a flawless, perfectly-fitted side and the rarest, most shareable result in the game.</p>
+
+    <ol class="modal-steps">
+      <li><span class="step-n">1</span><div><b>Set up.</b> Pick a <b>formation</b>, a <b>style</b> (Defensive / Balanced / Attacking) and a <b>mode</b> — <i>Classic</i> shows ratings, <i>Almanac</i> hides them for a pure memory test.</div></li>
+      <li><span class="step-n">2</span><div><b>Draft your XI — eleven rolls.</b> Each roll deals one real national squad (e.g. Brazil 1970). Tap <b>one</b> player, then tap a glowing slot to place him. A fresh squad is dealt for the next slot.</div></li>
+      <li><span class="step-n">3</span><div><b>Swaps.</b> Don't like the squad you rolled? Spend a <b>swap</b> to change the <b>country</b> or <b>year</b>. You get <b>3 per run</b> and they never cost you a pick.</div></li>
+      <li><span class="step-n">4</span><div><b>Position fit.</b> Slots only accept compatible roles. A player out of his natural position is marked <span class="oop">~</span> and loses rating — a #10 can't play full-back, and only a keeper goes in goal.</div></li>
+      <li><span class="step-n">5</span><div><b>Simulate.</b> With all 11 placed, hit <b>Simulate</b> and watch every match play out live — 3 group games, then Round of 16, Quarter-final, Semi-final and the Final.</div></li>
+      <li><span class="step-n">6</span><div><b>Close it 7–0.</b> Win all seven in normal time for the perfect run. Knockouts won on penalties still advance you but break the 7–0. Your perfect runs, streak and best are saved on this device.</div></li>
+    </ol>
+
+    <div class="modal-tip">💡 Lock in your goalkeeper and defence early — clean sheets win knockouts.</div>
+    <button class="btn primary big modal-go" id="howStart">Got it — let's play</button>
+  </div>
 </div>
 
 <script src="data.js"></script>

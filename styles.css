@@ -580,3 +580,61 @@ b{font-weight:700}
   *{animation-duration:.001s!important;animation-iteration-count:1!important}
   .pitch{transform:none!important}
 }
+
+/* ============================================================
+   HELP BUTTON + HOW-TO-PLAY MODAL
+   ============================================================ */
+.help-btn{
+  width:30px;height:30px;flex:none;border-radius:50%;cursor:pointer;align-self:center;
+  font-family:var(--font-num);font-weight:600;font-size:19px;line-height:1;
+  color:var(--gold);background:rgba(240,180,41,.08);border:1px solid var(--gold-deep);
+  transition:background .15s,color .15s,box-shadow .15s}
+.help-btn:hover{background:var(--gold);color:#241a02;box-shadow:var(--glow-gold)}
+
+.setup-actions{display:flex;flex-direction:column;gap:10px}
+.setup-actions .btn{width:100%}
+
+.modal-overlay{
+  position:fixed;inset:0;z-index:200;display:flex;align-items:flex-start;justify-content:center;
+  padding:max(20px,5vh) 16px;overflow-y:auto;
+  background:rgba(3,6,16,.74);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  animation:overlayIn .2s ease}
+.modal-overlay[hidden]{display:none}
+@keyframes overlayIn{from{opacity:0}to{opacity:1}}
+body.modal-open{overflow:hidden}
+
+.modal{
+  position:relative;width:100%;max-width:580px;margin:auto;
+  border:1px solid var(--brd-2);border-radius:var(--r-lg);
+  padding:clamp(22px,4vw,34px);box-shadow:0 30px 80px -20px rgba(0,0,0,.85);
+  animation:modalRise .32s cubic-bezier(.2,.7,.2,1)}
+@keyframes modalRise{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+.modal-x{
+  position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:9px;cursor:pointer;
+  font-size:15px;color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--brd);
+  transition:background .15s,color .15s,border-color .15s}
+.modal-x:hover{background:rgba(255,93,108,.16);color:var(--bad);border-color:var(--bad)}
+.modal-kicker{font-family:var(--font-head);font-weight:600;font-size:11px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--neon-green);opacity:.9;margin-bottom:6px}
+#howTitle{font-family:var(--font-head);font-weight:700;font-size:clamp(26px,5vw,38px);letter-spacing:.5px;line-height:1;margin-bottom:12px}
+.modal-lead{color:var(--muted);font-size:14.5px;line-height:1.6;margin-bottom:20px}
+.modal-lead b{color:var(--txt)}
+
+.modal-steps{list-style:none;display:flex;flex-direction:column;gap:13px;margin:0 0 20px}
+.modal-steps li{display:grid;grid-template-columns:30px 1fr;gap:13px;align-items:start;
+  font-size:14px;line-height:1.5;color:var(--muted)}
+.modal-steps li b{color:var(--txt)}
+.modal-steps li i{color:var(--gold);font-style:normal;font-weight:700}
+.step-n{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;
+  font-family:var(--font-num);font-weight:600;font-size:19px;color:#241a02;
+  background:linear-gradient(165deg,var(--foil),var(--gold-2));box-shadow:0 4px 12px -3px rgba(240,180,41,.5)}
+.modal-steps .oop{color:var(--warn);font-weight:900}
+
+.modal-tip{font-size:13px;color:var(--muted);background:rgba(52,214,255,.09);
+  border-left:3px solid var(--accent);border-radius:0 9px 9px 0;padding:11px 14px;margin-bottom:20px;line-height:1.5}
+.modal-go{width:100%}
+
+@media(max-width:480px){
+  .modal-steps li{grid-template-columns:26px 1fr;gap:10px;font-size:13.5px}
+  .step-n{width:26px;height:26px;font-size:16px}
+}
