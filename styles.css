@@ -261,9 +261,13 @@ b{font-weight:700}
 /* ============================================================
    PITCH — parallax 3D stage
    ============================================================ */
-.pitch-col{position:sticky;top:88px;min-width:0}
-/* perspective stage: fx.js rotates .pitch on pointer move */
-.pitch-stage{perspective:1300px;perspective-origin:50% 40%}
+.pitch-col{position:sticky;top:88px;min-width:0;display:flex;flex-direction:column;align-items:center;
+  --pitch-cap:calc(100dvh - 250px)}
+/* perspective stage: fx.js rotates .pitch on pointer move.
+   Bounded by viewport HEIGHT so the whole XI — GK at the bottom — is
+   always visible without scrolling. */
+.pitch-stage{perspective:1300px;perspective-origin:50% 40%;width:100%;
+  max-width:calc(var(--pitch-cap) * 0.68);margin-inline:auto}
 .pitch{
   position:relative;width:100%;aspect-ratio:68/100;border-radius:18px;overflow:hidden;
   transform-style:preserve-3d;
@@ -296,15 +300,16 @@ b{font-weight:700}
 
 /* slots / player tokens (lifted in 3D for parallax depth) */
 .slot{
-  position:absolute;transform:translate(-50%,-50%) translateZ(34px);width:18%;min-width:66px;
-  display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;text-align:center;z-index:3
+  position:absolute;transform:translate(-50%,-50%) translateZ(34px);width:clamp(50px,15%,76px);
+  display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;text-align:center;z-index:3
 }
 .slot .disc{
-  width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-num);font-weight:600;font-size:21px;letter-spacing:.5px;
+  width:clamp(34px,5.2vmin,46px);aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-num);font-weight:600;font-size:clamp(14px,2.6vmin,19px);letter-spacing:.5px;
   border:2px dashed rgba(255,255,255,.55);color:rgba(255,255,255,.85);
   background:radial-gradient(circle at 50% 30%, rgba(255,255,255,.16), rgba(0,0,0,.4));
   transition:transform .18s ease,border-color .18s,box-shadow .18s;box-shadow:0 6px 14px rgba(0,0,0,.45)}
+.slot .disc.empty{font-size:clamp(10px,2vmin,13px);font-family:var(--font-head);font-weight:600;color:rgba(255,255,255,.8)}
 .slot:hover .disc{border-color:#fff;transform:scale(1.08)}
 .slot.filled .disc{
   border-style:solid;border-color:#fff;color:#0a0e1c;
@@ -323,13 +328,16 @@ b{font-weight:700}
   50%{transform:scale(1.16);box-shadow:0 0 0 6px rgba(39,255,158,.22),0 0 34px 6px rgba(39,255,158,.85)}}
 .slot .role{font-family:var(--font-head);font-weight:600;font-size:9px;letter-spacing:1px;color:#fff;
   background:rgba(0,0,0,.58);padding:2px 7px;border-radius:6px;border:1px solid rgba(255,255,255,.16)}
-.slot .pname{font-size:10.5px;font-weight:700;line-height:1.1;max-width:92px;color:#fff;
-  text-shadow:0 1px 3px rgba(0,0,0,.95)}
+.slot .pname{font-size:clamp(8.5px,1.5vmin,10.5px);font-weight:700;line-height:1.1;max-width:100%;color:#fff;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  background:rgba(5,7,15,.66);padding:2px 6px;border-radius:7px;border:1px solid rgba(255,255,255,.08);
+  text-shadow:0 1px 2px rgba(0,0,0,.95);backdrop-filter:blur(2px)}
 .slot .pname .ovr{color:var(--gold)}
 .slot .pname .oop-mark{color:var(--warn);font-weight:900}
 
 /* ---- OVR broadcast strip: count-up + tiered fill bars ---- */
-.ovr-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:16px;
+.ovr-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:16px auto 0;
+  width:100%;max-width:calc(var(--pitch-cap) * 0.68);
   border-radius:14px;overflow:hidden;padding:0}
 .ovr-cell{display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 8px 12px;
   background:linear-gradient(180deg,rgba(20,28,52,.5),rgba(13,19,38,.5));position:relative}
@@ -553,7 +561,7 @@ b{font-weight:700}
 @media(max-width:920px){
   .build-main{grid-template-columns:1fr}
   .pitch-col{position:static}
-  .pitch-stage{max-width:440px;margin:0 auto}
+  .pitch-stage{max-width:min(420px, calc((100dvh - 200px) * 0.68));margin:0 auto}
   .build-top{position:sticky;top:62px;z-index:20;
     background:linear-gradient(180deg,rgba(8,12,28,.97),rgba(8,12,28,.85));
     padding:10px;margin:-10px -10px 14px;border-radius:0 0 14px 14px;backdrop-filter:blur(8px)}
@@ -567,9 +575,7 @@ b{font-weight:700}
   .stat{min-width:52px;padding:7px 9px}
   .stat b{font-size:21px}
   .stat em{display:none}
-  .slot{min-width:56px}
-  .slot .disc{width:42px;height:42px;font-size:18px}
-  .slot .pname{font-size:9.5px}
+  .slot{width:clamp(46px,17vw,66px)}
   .brand-kicker{display:none}
   .pcard{flex-basis:140px;width:140px;height:194px}
   .build-actions{flex:1;justify-content:flex-end}
