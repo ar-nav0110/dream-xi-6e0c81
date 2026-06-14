@@ -36,6 +36,7 @@ let state = {
   rollNow: 1,             // current roll number (1..11)
   swaps: 3,               // swaps remaining
   picks: 0,               // players placed so far
+  usedNames: new Set(),   // names already in the XI — each man once only
 };
 
 /* ---------------- position eligibility ----------------
@@ -109,6 +110,7 @@ function startDraft() {
   state.mode = $('selMode').value;
   buildSlots();
   state.picks = 0; state.rollNow = 1; state.swaps = 3; state.selPool = null;
+  state.usedNames = new Set();
   $('setupChip').textContent = `${state.formationKey} · ${STYLES[state.styleIdx]} · ${state.mode === 'almanac' ? 'Almanac' : 'Classic'}`;
   $('poolDone').hidden = true;
   $('poolList').hidden = false;
@@ -124,9 +126,12 @@ function startDraft() {
    DRAFT — roll / swap / place
    ===================================================== */
 function openRoles() { return state.slots.filter(s => !s.player).map(s => s.role); }
+/* a man can only be picked once across the whole draft — even a different
+   year or position of the same named player is off-limits */
+function nameUsed(p) { return state.usedNames.has(p.n); }
 function squadFitsOpen(squad) {
   const open = openRoles();
-  return squad.players.some(p => open.some(r => isEligible(p.p, r)));
+  return squad.players.some(p => !nameUsed(p) && open.some(r => isEligible(p.p, r)));
 }
 function dealRoll() {
   // pick a squad that can fill at least one still-open slot (no dead ends)
@@ -212,8 +217,10 @@ function renderPool() {
     card.className = 'pcard';
     card.style.setProperty('--i', di);   // stagger the pack-opening flip-in
     if (state.selPool === idx) card.classList.add('selected');
+    const used = nameUsed(p);
     const fitsOpen = state.slots.some(s => !s.player && isEligible(p.p, s.role));
-    if (!fitsOpen) card.classList.add('incompatible');
+    if (used) card.classList.add('used');          // already in the XI — locked out
+    else if (!fitsOpen) card.classList.add('incompatible');
     const fits = (PLAYABLE[p.p] || []).join(' ');
     const rt = state.mode === 'almanac' ? '<span class="rt hidden">•</span>' : `<span class="rt r${p.r}">${p.r}</span>`;
     card.innerHTML =
@@ -234,7 +241,7 @@ function markTargets() {
   let elig = 0;
   document.querySelectorAll('.slot').forEach((el, i) => {
     const sl = state.slots[i];
-    const ok = !!want && !sl.player && isEligible(want.p, sl.role);
+    const ok = !!want && !nameUsed(want) && !sl.player && isEligible(want.p, sl.role);
     el.classList.toggle('target', ok);
     if (ok) elig++;
   });
@@ -248,7 +255,9 @@ function onSlotClick(i) {
   if (state.selPool == null) { toast('Pick a player first'); return; }
   const player = state.pool.players[state.selPool];
   if (!isEligible(player.p, slot.role)) { toast(`${shortName(player.n)} (${player.p}) can't play ${slot.role}`); return; }
+  if (nameUsed(player)) { toast(`${shortName(player.n)} is already in your XI`); return; }
   slot.player = player;
+  state.usedNames.add(player.n);   // lock this name out of all future rolls
   state.selPool = null;
   state.picks++;
   renderPitch();
