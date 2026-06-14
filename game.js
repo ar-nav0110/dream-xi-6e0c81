@@ -206,10 +206,11 @@ function renderPool() {
   $('poolTeam').innerHTML = `${state.pool.flag} ${state.pool.country}<span class="yr">${state.pool.year}</span>`;
   const list = $('poolList');
   list.innerHTML = '';
-  [...state.pool.players].sort((a, b) => b.r - a.r).forEach((p) => {
+  [...state.pool.players].sort((a, b) => b.r - a.r).forEach((p, di) => {
     const idx = state.pool.players.indexOf(p);
     const card = document.createElement('div');
     card.className = 'pcard';
+    card.style.setProperty('--i', di);   // stagger the pack-opening flip-in
     if (state.selPool === idx) card.classList.add('selected');
     const fitsOpen = state.slots.some(s => !s.player && isEligible(p.p, s.role));
     if (!fitsOpen) card.classList.add('incompatible');
@@ -295,15 +296,48 @@ function powers() {
     : 0;
   return { attack, defense, ovr, L };
 }
+/* Animate one OVR cell: count the number up and drive its colour-tiered
+   fill bar. Tiers: <70 red · 70-84 amber · 85+ green. Non-numeric
+   values (almanac '?' / empty '–') reset the bar. */
+function setStat(id, val) {
+  const el = $(id);
+  if (!el) return;
+  const cell = el.closest('.ovr-cell');
+  const fill = cell ? cell.querySelector('.ovr-fill') : null;
+  if (typeof val !== 'number' || !isFinite(val)) {        // '?' or '–'
+    if (el._raf) cancelAnimationFrame(el._raf);
+    el.textContent = val;
+    if (cell) cell.classList.remove('t-low', 't-mid', 't-high');
+    if (fill) fill.style.width = '0%';
+    return;
+  }
+  const target = Math.round(val);
+  if (cell) {
+    cell.classList.remove('t-low', 't-mid', 't-high');
+    cell.classList.add(target >= 85 ? 't-high' : target >= 70 ? 't-mid' : 't-low');
+  }
+  if (fill) fill.style.width = clamp(target, 0, 99) + '%';   // bar fills (CSS transition)
+  const from = parseInt(el.textContent, 10) || 0;            // count-up from current
+  if (el._raf) cancelAnimationFrame(el._raf);
+  const t0 = Date.now(), dur = 650;
+  const tick = () => {
+    const t = Math.min(1, (Date.now() - t0) / dur);
+    const e = 1 - Math.pow(1 - t, 3);                        // easeOutCubic
+    el.textContent = Math.round(from + (target - from) * e);
+    if (t < 1) el._raf = requestAnimationFrame(tick);
+    else el.textContent = target;
+  };
+  tick();
+}
 function updateOverall() {
   const filled = state.slots.filter(s => s.player).length;
-  if (state.mode === 'almanac') { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => $(id).textContent = '?'); return; }
-  if (!filled) { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => $(id).textContent = '–'); return; }
+  if (state.mode === 'almanac') { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => setStat(id, '?')); return; }
+  if (!filled) { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => setStat(id, '–')); return; }
   const p = powers();
-  $('ovrTeam').textContent = p.ovr;
-  $('ovrAtt').textContent = Math.round(p.attack);
-  $('ovrMid').textContent = Math.round(p.L.midScore);
-  $('ovrDef').textContent = Math.round(p.defense);
+  setStat('ovrTeam', p.ovr);
+  setStat('ovrAtt', Math.round(p.attack));
+  setStat('ovrMid', Math.round(p.L.midScore));
+  setStat('ovrDef', Math.round(p.defense));
 }
 
 /* =====================================================
@@ -456,13 +490,29 @@ function revealEvent(ev, fx) {
     $('sbScore').textContent = `${sim.cur.us} – ${sim.cur.them}`;
     const sb = document.querySelector('.scoreboard');
     if (sb) { sb.classList.remove('goal-flash'); void sb.offsetWidth; sb.classList.add('goal-flash'); }
+    if (!sim.flushing) goalChaos(ev.side);   // skip the juice during fast-forward flush
   }
   addFeed(ev, fx);
+}
+/* Screen-shake + popping "GOAL!" overlay. Re-triggers cleanly so the
+   latest goal always wins (remove → reflow → add). */
+function goalChaos(side) {
+  const scr = $('screen-sim');
+  if (scr) { scr.classList.remove('fx-shake'); void scr.offsetWidth; scr.classList.add('fx-shake'); }
+  const pop = $('goalPop');
+  if (pop) {
+    pop.className = 'goal-pop ' + side;
+    pop.textContent = side === 'us' ? 'GOAL!' : 'Conceded';
+    void pop.offsetWidth;
+    pop.classList.add('show');
+  }
 }
 function endMatchAnim() {
   cancelAnim();
   const { fx, m } = sim.cur;
+  sim.flushing = true;
   while (sim.cur.shown < sim.cur.events.length) { revealEvent(sim.cur.events[sim.cur.shown], fx); sim.cur.shown++; }
+  sim.flushing = false;
   $('simClock').textContent = "90’"; $('simBar').style.width = '100%';
   sim.cur.us = m.gf; sim.cur.them = m.ga; $('sbScore').textContent = `${m.gf} – ${m.ga}`;
   addFeed({ type: 'ft', min: 90 }, fx);
@@ -623,19 +673,70 @@ function shareText() {
 /* =====================================================
    confetti + toast
    ===================================================== */
+/* Canvas particle payoff for the 7-0 win: confetti rain + bursting
+   fireworks. Self-contained — sizes to the viewport, runs ~5.5s, then
+   stops and hides the shared #fxCanvas. */
 function confetti() {
-  const c = document.createElement('div'); c.id = 'confetti';
-  document.body.appendChild(c);
-  const cols = ['#ffd24a', '#36d57d', '#fff', '#3aa0ff', '#ff6b6b'];
-  for (let i = 0; i < 120; i++) {
-    const p = document.createElement('div'); p.className = 'conf';
-    p.style.left = Math.random() * 100 + 'vw';
-    p.style.background = rnd(cols);
-    p.style.animationDuration = (1.8 + Math.random() * 1.8) + 's';
-    p.style.animationDelay = (Math.random() * 0.6) + 's';
-    c.appendChild(p);
+  const cv = $('fxCanvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const resize = () => { cv.width = innerWidth * DPR; cv.height = innerHeight * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); };
+  resize();
+  cv.style.display = 'block';
+  window.addEventListener('resize', resize);
+
+  const COLS = ['#ffd24a', '#27ff9e', '#34d6ff', '#ff4d8d', '#a06bff', '#ffffff'];
+  const parts = [];
+  // confetti ribbons falling from the top
+  for (let i = 0; i < 160; i++) {
+    parts.push({
+      kind: 'conf', x: Math.random() * innerWidth, y: -20 - Math.random() * innerHeight,
+      vx: (Math.random() - 0.5) * 2.4, vy: 2.4 + Math.random() * 3.6,
+      w: 6 + Math.random() * 6, h: 9 + Math.random() * 9,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+      col: rnd(COLS), life: 1,
+    });
   }
-  setTimeout(() => c.remove(), 4200);
+  // a fireworks shell: explodes into a ring of sparks
+  const burst = (x, y) => {
+    const col = rnd(COLS), n = 34 + ((Math.random() * 18) | 0);
+    for (let i = 0; i < n; i++) {
+      const a = (Math.PI * 2 * i) / n, sp = 2 + Math.random() * 4.2;
+      parts.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, col, life: 1, decay: 0.012 + Math.random() * 0.015 });
+    }
+  };
+  const start = Date.now(), DUR = 5500;
+  let nextBurst = 0, raf;
+  const frame = () => {
+    const elapsed = Date.now() - start;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    if (elapsed < DUR - 900 && elapsed > nextBurst) {       // keep launching shells for most of the run
+      burst(innerWidth * (0.2 + Math.random() * 0.6), innerHeight * (0.2 + Math.random() * 0.35));
+      nextBurst = elapsed + 350 + Math.random() * 350;
+    }
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      if (p.kind === 'conf') {
+        p.vy += 0.04; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y > innerHeight + 30) { p.y = -20; p.x = Math.random() * innerWidth; }
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.col; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      } else {                                               // spark
+        p.vy += 0.045; p.vx *= 0.99; p.vy *= 0.99;
+        p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.col; ctx.shadowColor = p.col; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
+    }
+    if (elapsed < DUR) { raf = requestAnimationFrame(frame); }
+    else { ctx.clearRect(0, 0, innerWidth, innerHeight); cv.style.display = 'none'; window.removeEventListener('resize', resize); }
+  };
+  raf = requestAnimationFrame(frame);
 }
 let toastT;
 function toast(msg) {

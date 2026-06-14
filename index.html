@@ -2,25 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'" />
-<meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="robots" content="noindex, nofollow" />
-<meta name="theme-color" content="#0a0f1f" />
+<meta name="theme-color" content="#05070f" />
 <title>7-0 · World Cup Dream Team</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<!-- Teko: aggressive condensed numerals · Oswald: sport headers · Sora: clean UI body -->
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<!-- ambient stadium atmosphere -->
+
+<!-- ========================================================
+     AMBIENT BACKDROP — neon floodlights, scanlines, grain
+     (parallax layers driven by fx.js → --par-x / --par-y)
+     ======================================================== -->
 <div class="bg" aria-hidden="true">
   <div class="flood flood-a"></div>
   <div class="flood flood-b"></div>
+  <div class="flood flood-c"></div>
+  <div class="scan"></div>
   <div class="grain"></div>
   <div class="vignette"></div>
 </div>
+
+<!-- Full-screen particle canvas for the 7-0 fireworks payoff -->
+<canvas id="fxCanvas" aria-hidden="true"></canvas>
+
 <div id="app">
 
   <!-- ===== HEADER ===== -->
@@ -38,12 +47,12 @@
 
   <!-- ===== SCREEN: SETUP ===== -->
   <section id="screen-setup" class="screen active">
-    <div class="setup-wrap">
+    <div class="setup-wrap stagger">
       <div class="kicker"><span>★</span> World Cup · Dream Team Builder <span>★</span></div>
       <h1 class="big-title">Build the dream team.<br />Close it out <span class="hl">7–0</span>.</h1>
       <p class="sub">Pick a formation and a style, then draft your XI: each roll deals a real World Cup squad — take one player, place him, roll again. Eleven rolls, eleven legends. Then survive seven matches unbeaten.</p>
 
-      <div class="setup-card">
+      <div class="setup-card glass">
         <div class="setup-grid">
           <label>Formation
             <select id="selFormation"></select>
@@ -61,7 +70,7 @@
         <button class="btn primary big" id="btnStartDraft">🎲 Start the draft</button>
       </div>
 
-      <details class="howto">
+      <details class="howto glass">
         <summary>How to play</summary>
         <ol>
           <li>Choose your <b>formation</b>, <b>tactical style</b>, and <b>mode</b> (Classic shows ratings, Almanac hides them).</li>
@@ -78,7 +87,7 @@
 
   <!-- ===== SCREEN: DRAFT ===== -->
   <section id="screen-draft" class="screen">
-    <div class="build-top">
+    <div class="build-top stagger">
       <div class="draft-meta">
         <div class="meta-chip">🎲 Roll <b id="rollNow">1</b><span>/11</span></div>
         <div class="meta-chip">🔄 Swaps <b id="swapsLeft">3</b></div>
@@ -91,19 +100,34 @@
     </div>
 
     <div class="build-main">
-      <!-- pitch -->
-      <div class="pitch-col">
-        <div class="pitch" id="pitch"></div>
-        <div class="ovr-bar" id="ovrBar">
-          <span>Overall <b id="ovrTeam">–</b></span>
-          <span>ATT <b id="ovrAtt">–</b></span>
-          <span>MID <b id="ovrMid">–</b></span>
-          <span>DEF <b id="ovrDef">–</b></span>
+      <!-- pitch (parallax stage) -->
+      <div class="pitch-col stagger">
+        <div class="pitch-stage" id="pitchStage">
+          <div class="pitch" id="pitch"></div>
+        </div>
+        <!-- broadcast OVR strip: count-up numbers + colour-tiered fill bars -->
+        <div class="ovr-bar glass" id="ovrBar">
+          <div class="ovr-cell" data-k="ovr">
+            <span class="ovr-k">Overall</span><b class="ovr-v" id="ovrTeam">–</b>
+            <span class="ovr-track"><i class="ovr-fill"></i></span>
+          </div>
+          <div class="ovr-cell" data-k="att">
+            <span class="ovr-k">Att</span><b class="ovr-v" id="ovrAtt">–</b>
+            <span class="ovr-track"><i class="ovr-fill"></i></span>
+          </div>
+          <div class="ovr-cell" data-k="mid">
+            <span class="ovr-k">Mid</span><b class="ovr-v" id="ovrMid">–</b>
+            <span class="ovr-track"><i class="ovr-fill"></i></span>
+          </div>
+          <div class="ovr-cell" data-k="def">
+            <span class="ovr-k">Def</span><b class="ovr-v" id="ovrDef">–</b>
+            <span class="ovr-track"><i class="ovr-fill"></i></span>
+          </div>
         </div>
       </div>
 
-      <!-- current rolled squad -->
-      <div class="pool-col">
+      <!-- current rolled squad — pack-opening carousel -->
+      <div class="pool-col glass stagger">
         <div class="pool-head">
           <div class="pool-team" id="poolTeam">—</div>
         </div>
@@ -130,7 +154,7 @@
         <span class="live-count" id="simCount">Match 1 / 7</span>
       </div>
 
-      <div class="scoreboard">
+      <div class="scoreboard glass">
         <div class="sb-team us">
           <span class="sb-flag">⚽</span>
           <span class="sb-name" id="sbUs">Your XI</span>
@@ -143,11 +167,14 @@
           <span class="sb-flag" id="sbThemFlag">🏴</span>
           <span class="sb-name" id="sbThem">Opponent</span>
         </div>
+
+        <!-- juicy goal burst overlay (fired by game.js) -->
+        <div class="goal-pop" id="goalPop" aria-hidden="true"></div>
       </div>
 
       <div class="sb-bar"><div class="sb-bar-fill" id="simBar"></div></div>
 
-      <div class="live-feed" id="simFeed"></div>
+      <div class="live-feed glass" id="simFeed"></div>
 
       <div class="live-controls" id="simControls"></div>
     </div>
@@ -155,7 +182,7 @@
 
   <!-- ===== SCREEN: RESULT ===== -->
   <section id="screen-result" class="screen">
-    <div class="result-wrap">
+    <div class="result-wrap stagger">
       <div class="result-badge" id="resultBadge">7–0</div>
       <h2 id="resultHeadline">Champions</h2>
       <p id="resultSub"></p>
@@ -167,9 +194,12 @@
       </div>
     </div>
   </section>
+
+  <footer id="botbar">7–0 dream team builder · a fan-made clone of <i>Sete a Zero</i> · stats saved on this device only</footer>
 </div>
 
 <script src="data.js"></script>
 <script src="game.js"></script>
+<script src="fx.js"></script>
 </body>
 </html>
