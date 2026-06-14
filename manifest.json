@@ -1,0 +1,14 @@
+{
+  "name": "7–0 · World Cup Dream Team",
+  "short_name": "7–0 Dream Team",
+  "description": "Draft real World Cup legends across every era and win the tournament 7–0.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05070f",
+  "theme_color": "#05070f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

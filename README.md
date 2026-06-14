@@ -9,7 +9,8 @@ A fan-made clone of the viral browser game **[Sete a Zero (7a0)](https://7a0.com
 [![CI](https://github.com/ar-nav0110/dream-xi-6e0c81/actions/workflows/ci.yml/badge.svg)](https://github.com/ar-nav0110/dream-xi-6e0c81/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Deploy: GitHub Pages](https://img.shields.io/badge/deploy-GitHub%20Pages-2ea44f?logo=github)](https://ar-nav0110.github.io/dream-xi-6e0c81/)
-[![Squads](https://img.shields.io/badge/squads-48-blue)](data.js)
+[![Squads](https://img.shields.io/badge/squads-57-blue)](data.js)
+[![PWA](https://img.shields.io/badge/PWA-installable-5a3fff)](manifest.json)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#)
 [![Made with](https://img.shields.io/badge/made%20with-HTML%20%C2%B7%20CSS%20%C2%B7%20JS-orange)](#)
 
@@ -29,6 +30,16 @@ A fan-made clone of the viral browser game **[Sete a Zero (7a0)](https://7a0.com
 4. **Position fit** — each slot only accepts compatible positions. Out-of-position players (`~`) lose rating; a #10 can't play fullback, only a keeper goes in goal.
 5. **Simulate** — a live 7-match run plays out (3 group + Round of 16, QF, SF, Final): ticking 0'–90' clock, commentary feed (goals with real scorers, cards, chances), penalty shootouts.
 6. **7–0** — win all seven and you've built a flawless dream team — the rarest, most shareable result. Stats (perfect runs, streak, best) save locally.
+
+## Features
+
+- **11-roll draft** across **57** real World Cup squads (1950–2026), with position eligibility (out-of-position `~` penalty) and **3 swaps**.
+- **Difficulty** (Easy / Normal / Hard) shifts the whole opponent curve.
+- **Chemistry** — same-nation / same-era links boost your XI (shown live in the OVR strip).
+- **Classic / Almanac** modes (Almanac hides ratings; revealed on the result screen).
+- **Live match sim** — 90' clock, commentary, cards, penalty shootouts, 3D parallax pitch.
+- **Share** your run as a **generated image** (or text), plus **achievements**, **run history**, and saved stats.
+- **Sound FX** (synth, mutable) and **installable PWA** (offline-capable).
 
 ## Tech
 

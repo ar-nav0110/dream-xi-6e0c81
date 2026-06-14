@@ -11,6 +11,9 @@
 <!-- Teko: aggressive condensed numerals · Oswald: sport headers · Sora: clean UI body -->
 <link href="https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
 </head>
 <body>
 
@@ -39,6 +42,7 @@
       <div class="brand-kicker">Dream<br />Team</div>
     </div>
     <div class="topstats">
+      <button class="help-btn" id="btnMute" title="Sound on/off" aria-label="Toggle sound">🔊</button>
       <button class="help-btn" id="btnHelpTop" title="How to play" aria-label="How to play">?</button>
       <span class="stat" title="Perfect 7-0 runs"><i>🏆</i><b id="statSevens">0</b><em>sevens</em></span>
       <span class="stat" title="Current 7-0 streak"><i>🔥</i><b id="statStreak">0</b><em>streak</em></span>
@@ -65,6 +69,13 @@
             <select id="selMode">
               <option value="classic">Classic — ratings shown</option>
               <option value="almanac">Almanac — ratings hidden</option>
+            </select>
+          </label>
+          <label>Difficulty
+            <select id="selDiff">
+              <option value="0">Easy — softer opponents</option>
+              <option value="1" selected>Normal</option>
+              <option value="2">Hard — 7–0 is brutal</option>
             </select>
           </label>
         </div>
@@ -112,6 +123,10 @@
           </div>
           <div class="ovr-cell" data-k="def">
             <span class="ovr-k">Def</span><b class="ovr-v" id="ovrDef">–</b>
+            <span class="ovr-track"><i class="ovr-fill"></i></span>
+          </div>
+          <div class="ovr-cell" data-k="che">
+            <span class="ovr-k">Chem</span><b class="ovr-v" id="ovrChem">–</b>
             <span class="ovr-track"><i class="ovr-fill"></i></span>
           </div>
         </div>
@@ -179,8 +194,11 @@
       <p id="resultSub"></p>
       <div class="result-record" id="resultRecord"></div>
       <div class="result-scores" id="resultScores"></div>
+      <div class="result-lineup" id="resultLineup"></div>
       <div class="result-actions">
-        <button class="btn primary big" id="btnShare">📋 Copy result</button>
+        <button class="btn primary big" id="btnShareImg">🖼️ Share image</button>
+        <button class="btn ghost" id="btnShare">📋 Copy text</button>
+        <button class="btn ghost" id="btnStats">📊 Stats</button>
         <button class="btn ghost" id="btnPlayAgain">Play again</button>
       </div>
     </div>
@@ -210,6 +228,23 @@
     <button class="btn primary big modal-go" id="howStart">Got it — let's play</button>
   </div>
 </div>
+
+<!-- ===== STATS / ACHIEVEMENTS MODAL ===== -->
+<div class="modal-overlay" id="statsModal" hidden>
+  <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <button class="modal-x" id="statsClose" aria-label="Close">✕</button>
+    <div class="modal-kicker">★ Your record ★</div>
+    <h2 id="statsTitle">Stats &amp; Achievements</h2>
+    <div class="stats-summary" id="statsSummary"></div>
+    <h3 class="stats-h">Achievements</h3>
+    <div class="ach-grid" id="achGrid"></div>
+    <h3 class="stats-h">Recent runs</h3>
+    <div class="hist-list" id="histList"></div>
+  </div>
+</div>
+
+<!-- offscreen canvas for share-image export -->
+<canvas id="shareCanvas" width="1080" height="1350" hidden aria-hidden="true"></canvas>
 
 <script src="data.js"></script>
 <script src="game.js"></script>

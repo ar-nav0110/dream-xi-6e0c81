@@ -24,9 +24,9 @@ const elig = (n, r) => (PLAYABLE[n] || []).includes(r);
 const errors = [];
 const E = (m) => errors.push(m);
 
-// 1) squad count
-const EXPECT = 48;
-if (SQUADS.length !== EXPECT) E(`expected ${EXPECT} squads, found ${SQUADS.length}`);
+// 1) squad count (minimum — squads can be added freely)
+const MIN_SQUADS = 40;
+if (SQUADS.length < MIN_SQUADS) E(`expected >= ${MIN_SQUADS} squads, found ${SQUADS.length}`);
 
 // 2) per-squad checks
 const seen = new Set();
@@ -43,10 +43,11 @@ for (const s of SQUADS) {
     if (names.has(p.n)) E(`${tag}: duplicate player '${p.n}'`); names.add(p.n);
     if (POS_META[p.p]) lines[POS_META[p.p].line]++;
   }
+  // a squad needn't fill a formation alone (the draft mixes many squads and
+  // dealRoll only deals squads that fit an open slot) — just require a keeper
+  // plus a sensible spread of outfielders.
   if (lines[0] < 1) E(`${tag}: no goalkeeper`);
-  if (lines[1] < 3) E(`${tag}: <3 defenders`);
-  if (lines[2] < 3) E(`${tag}: <3 midfielders`);
-  if (lines[3] < 2) E(`${tag}: <2 forwards`);
+  if (lines[1] + lines[2] + lines[3] < 9) E(`${tag}: <9 outfielders`);
 }
 
 // 3) every formation role must be fillable by some natural position

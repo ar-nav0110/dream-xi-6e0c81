@@ -36,8 +36,16 @@ let state = {
   rollNow: 1,             // current roll number (1..11)
   swaps: 3,               // swaps remaining
   picks: 0,               // players placed so far
+  diffIdx: 1,             // 0 easy / 1 normal / 2 hard
   usedNames: new Set(),   // names already in the XI — each man once only
 };
+
+/* difficulty: shifts the whole opponent strength curve */
+const DIFF = [
+  { name: 'Easy', off: -5 },
+  { name: 'Normal', off: 0 },
+  { name: 'Hard', off: +5 },
+];
 
 /* ---------------- position eligibility ----------------
    Each natural position fills its own slot (0 penalty) plus RELATED
@@ -100,6 +108,7 @@ function initSetupControls() {
   s.innerHTML = STYLES.map((n, i) => `<option value="${i}">${n}</option>`).join('');
   s.value = state.styleIdx;
   $('selMode').value = state.mode;
+  $('selDiff').value = state.diffIdx;
 }
 function buildSlots() {
   state.slots = FORMATIONS[state.formationKey].map(sl => ({ role: sl.role, x: sl.x, y: sl.y, player: null }));
@@ -108,10 +117,11 @@ function startDraft() {
   state.formationKey = $('selFormation').value;
   state.styleIdx = +$('selStyle').value;
   state.mode = $('selMode').value;
+  state.diffIdx = +$('selDiff').value;
   buildSlots();
   state.picks = 0; state.rollNow = 1; state.swaps = 3; state.selPool = null;
   state.usedNames = new Set();
-  $('setupChip').textContent = `${state.formationKey} · ${STYLES[state.styleIdx]} · ${state.mode === 'almanac' ? 'Almanac' : 'Classic'}`;
+  $('setupChip').textContent = `${state.formationKey} · ${STYLES[state.styleIdx]} · ${DIFF[state.diffIdx].name} · ${state.mode === 'almanac' ? 'Almanac' : 'Classic'}`;
   $('poolDone').hidden = true;
   $('poolList').hidden = false;
   $('btnSimulate').disabled = true;
@@ -257,12 +267,15 @@ function onSlotClick(i) {
   if (!isEligible(player.p, slot.role)) { toast(`${shortName(player.n)} (${player.p}) can't play ${slot.role}`); return; }
   if (nameUsed(player)) { toast(`${shortName(player.n)} is already in your XI`); return; }
   slot.player = player;
+  slot.country = state.pool.country;   // squad origin (for chemistry)
+  slot.year = state.pool.year;
   state.usedNames.add(player.n);   // lock this name out of all future rolls
   state.selPool = null;
   state.picks++;
+  sfx('place');
   renderPitch();
   updateOverall();
-  if (state.picks >= TOTAL_ROLLS) { draftComplete(); }
+  if (state.picks >= TOTAL_ROLLS) { sfx('whistle'); draftComplete(); }
   else { state.rollNow++; dealRoll(); updateMeta(); }
 }
 function draftComplete() {
@@ -293,17 +306,37 @@ function lineScores() {
   const defScore = gk * 0.30 + avgDef * 0.70;
   return { gk, defScore, midScore: avgMid, attScore: avgAtt };
 }
+/* Chemistry 0-100: rewards stacking same-nation (strongest when same exact
+   squad) and same-era players. Random mixed XIs score low; intentional
+   nation/era stacks score high and earn a small rating bonus. */
+function chemistry() {
+  const ps = state.slots.filter(s => s.player && s.country);
+  const n = ps.length;
+  if (n < 2) return 0;
+  let links = 0, pairs = 0;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    pairs++;
+    const a = ps[i], b = ps[j];
+    let v = 0;
+    if (a.country === b.country) v = (a.year === b.year) ? 1 : 0.6;   // same nation (same squad strongest)
+    else if (Math.abs(a.year - b.year) <= 8) v = 0.25;               // same era, different nation
+    links += v;
+  }
+  return Math.round(clamp(links / pairs, 0, 1) * 100);
+}
 function powers() {
   const L = lineScores();
   const sAtt = [-4, 0, 4][state.styleIdx];
   const sDef = [4, 0, -4][state.styleIdx];
-  const attack = L.attScore * 0.62 + L.midScore * 0.38 + sAtt;
-  const defense = L.defScore * 0.62 + L.midScore * 0.38 + sDef;
+  const chem = chemistry();
+  const chemBonus = (chem / 100) * 3;     // up to +3 to both att & def for a well-linked XI
+  const attack = L.attScore * 0.62 + L.midScore * 0.38 + sAtt + chemBonus;
+  const defense = L.defScore * 0.62 + L.midScore * 0.38 + sDef + chemBonus;
   const filled = state.slots.filter(s => s.player);
   const ovr = filled.length
     ? Math.round(filled.reduce((s, sl) => s + effRating(sl.player, sl.role).eff, 0) / filled.length)
     : 0;
-  return { attack, defense, ovr, L };
+  return { attack, defense, ovr, chem, L };
 }
 /* Animate one OVR cell: count the number up and drive its colour-tiered
    fill bar. Tiers: <70 red · 70-84 amber · 85+ green. Non-numeric
@@ -340,6 +373,8 @@ function setStat(id, val) {
 }
 function updateOverall() {
   const filled = state.slots.filter(s => s.player).length;
+  // chemistry is structural (not a player rating) so it shows even in Almanac
+  setStat('ovrChem', filled ? chemistry() : '–');
   if (state.mode === 'almanac') { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => setStat(id, '?')); return; }
   if (!filled) { ['ovrTeam', 'ovrAtt', 'ovrMid', 'ovrDef'].forEach(id => setStat(id, '–')); return; }
   const p = powers();
@@ -390,8 +425,9 @@ function startSim() {
 /* ---- decide the real result (tuned model) ---- */
 function computeMatch(fx) {
   const { attack, defense } = sim.me;
-  let expFor = (attack - fx.str) / 6 + 1.3;
-  let expAg = (fx.str - defense) / 6 + 1.15;
+  const str = fx.str + DIFF[state.diffIdx].off;   // difficulty shifts opponent strength
+  let expFor = (attack - str) / 6 + 1.3;
+  let expAg = (str - defense) / 6 + 1.15;
   let gf = clamp(Math.round(Math.max(0, expFor + (Math.random() - 0.5) * 1.5)), 0, 7);
   let ga = clamp(Math.round(Math.max(0, expAg + (Math.random() - 0.5) * 1.5)), 0, 7);
   if (gf > ga && Math.random() < 0.10) ga = gf;  // upset floor
@@ -401,7 +437,7 @@ function computeMatch(fx) {
   else if (gf < ga) { outcome = 'loss'; if (fx.ko) eliminated = true; }
   else {
     if (fx.ko) {
-      const pWin = clamp(0.5 + (attack - fx.str) / 55, 0.25, 0.8);
+      const pWin = clamp(0.5 + (attack - str) / 55, 0.25, 0.8);
       const adv = Math.random() < pWin;
       pens = makeShootout(adv);
       if (adv) { outcome = 'draw'; penText = `(advanced on penalties ${pens.us}–${pens.them})`; }
@@ -475,6 +511,7 @@ function runMatch(i) {
   $('simBar').style.width = '0%';
   $('simFeed').innerHTML = '';
   addFeed({ type: 'kick', min: 0 }, fx);
+  sfx('whistle');
   setControls('playing');
 
   const start = Date.now();
@@ -499,7 +536,9 @@ function revealEvent(ev, fx) {
     $('sbScore').textContent = `${sim.cur.us} – ${sim.cur.them}`;
     const sb = document.querySelector('.scoreboard');
     if (sb) { sb.classList.remove('goal-flash'); void sb.offsetWidth; sb.classList.add('goal-flash'); }
-    if (!sim.flushing) goalChaos(ev.side);   // skip the juice during fast-forward flush
+    if (!sim.flushing) { goalChaos(ev.side); sfx('goal'); }   // skip the juice during fast-forward flush
+  } else if ((ev.type === 'yellow' || ev.type === 'red') && !sim.flushing) {
+    sfx('card');
   }
   addFeed(ev, fx);
 }
@@ -525,6 +564,7 @@ function endMatchAnim() {
   $('simClock').textContent = "90’"; $('simBar').style.width = '100%';
   sim.cur.us = m.gf; sim.cur.them = m.ga; $('sbScore').textContent = `${m.gf} – ${m.ga}`;
   addFeed({ type: 'ft', min: 90 }, fx);
+  sfx('whistle');
   sim.anim = {};
   if (m.pens) runPens(m.pens, () => postMatch(m));
   else postMatch(m);
@@ -658,6 +698,32 @@ function finishSim() {
        <span class="rs-sc">${r.gf}–${r.ga}</span>
      </div>`).join('');
 
+  // XI reveal (recap for everyone; reveals hidden ratings in Almanac)
+  const heading = state.mode === 'almanac' ? 'Your XI — ratings revealed' : 'Your XI';
+  $('resultLineup').innerHTML =
+    `<div class="rl-h">${heading} · OVR ${sim.me.ovr} · CHEM ${sim.me.chem}</div>` +
+    state.slots.filter(s => s.player).map(s => {
+      const { eff, pen } = effRating(s.player, s.role);
+      return `<span class="rl-p"><i class="rl-pos">${s.role}</i>${shortName(s.player.n)}${pen > 0 ? '<u>~</u>' : ''}<b>${eff}</b></span>`;
+    }).join('');
+
+  // sound, history, achievements
+  sfx(champion ? 'win' : 'lose');
+  const run = {
+    badge: flawless ? '7–0' : champion ? '🏆' : roundShort(sim.elimRound),
+    cls: flawless || champion ? 'w' : 'l',
+    formation: state.formationKey, style: STYLES[state.styleIdx], diff: DIFF[state.diffIdx].name, mode: state.mode,
+    ovr: sim.me.ovr, chem: sim.me.chem,
+    wins: sim.wins, draws: sim.draws, losses: sim.losses, gf: sim.gf, ga: sim.ga,
+    champion, flawless,
+  };
+  recordRun(run);
+  const fresh = checkAchievements(run);
+  if (fresh.length) {
+    const a = ACHIEVEMENTS.find(x => x.id === fresh[0]);
+    if (a) setTimeout(() => toast(`${a.icon} Achievement: ${a.name}`), 900);
+  }
+
   show('screen-result');
 }
 function roundShort(label) {
@@ -758,6 +824,191 @@ function toast(msg) {
 /* =====================================================
    wire up
    ===================================================== */
+/* =====================================================
+   SOUND FX — WebAudio synth, zero assets
+   ===================================================== */
+let actx = null, muted = false;
+try { muted = localStorage.getItem('sete_muted') === '1'; } catch (e) {}
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
+  if (actx && actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(freq, t0, dur, type, gain) {
+  const c = audio(); if (!c) return;
+  const o = c.createOscillator(), g = c.createGain(), now = c.currentTime + t0;
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, now);
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.linearRampToValueAtTime(gain || 0.18, now + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  o.connect(g).connect(c.destination); o.start(now); o.stop(now + dur + 0.03);
+}
+function noiseSwell(t0, dur, gain, freq) {
+  const c = audio(); if (!c) return;
+  const n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const env = Math.sin(Math.PI * i / n); d[i] = (Math.random() * 2 - 1) * env; }
+  const src = c.createBufferSource(); src.buffer = buf;
+  const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq || 1000; bp.Q.value = 0.6;
+  const g = c.createGain(); g.gain.value = gain || 0.2;
+  src.connect(bp).connect(g).connect(c.destination); src.start(c.currentTime + t0);
+}
+function sfx(kind) {
+  if (muted) return;
+  try {
+    switch (kind) {
+      case 'place': tone(440, 0, 0.07, 'triangle', 0.10); break;
+      case 'whistle': tone(2050, 0, 0.13, 'square', 0.07); tone(2450, 0.04, 0.11, 'square', 0.06); break;
+      case 'card': tone(140, 0, 0.16, 'sawtooth', 0.14); break;
+      case 'goal': noiseSwell(0, 0.95, 0.30, 850); tone(330, 0, 0.5, 'sawtooth', 0.08); tone(440, 0.06, 0.5, 'sawtooth', 0.06); break;
+      case 'win': [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.55, 'triangle', 0.16)); noiseSwell(0.12, 1.2, 0.18, 1400); break;
+      case 'lose': tone(330, 0, 0.3, 'sine', 0.12); tone(247, 0.18, 0.5, 'sine', 0.12); break;
+    }
+  } catch (e) {}
+}
+function setMuted(m) {
+  muted = m;
+  try { localStorage.setItem('sete_muted', m ? '1' : '0'); } catch (e) {}
+  const b = $('btnMute'); if (b) { b.textContent = m ? '🔇' : '🔊'; }
+}
+
+/* =====================================================
+   RUN HISTORY + ACHIEVEMENTS (localStorage)
+   ===================================================== */
+const HIST_KEY = 'sete_history_v1', ACH_KEY = 'sete_ach_v1';
+const ACHIEVEMENTS = [
+  { id: 'first_cup', icon: '🏆', name: 'Champion', desc: 'Win the tournament.' },
+  { id: 'first_seven', icon: '7️⃣', name: 'Seven to Zero', desc: 'Win all 7 — a perfect 7–0.' },
+  { id: 'clean_sweep', icon: '🧤', name: 'Iron Curtain', desc: 'Go 7–0 without conceding a goal.' },
+  { id: 'goal_glut', icon: '⚽', name: 'Goal Glut', desc: 'Score 20+ goals in one run.' },
+  { id: 'giant_killer', icon: '🐲', name: 'Giant Killer', desc: 'Win the cup with an OVR under 83.' },
+  { id: 'almanac_ace', icon: '🧠', name: 'Almanac Ace', desc: 'Go 7–0 in Almanac mode.' },
+  { id: 'hard_man', icon: '🔥', name: 'No Mercy', desc: 'Go 7–0 on Hard difficulty.' },
+  { id: 'chemist', icon: '🧪', name: 'Perfect Blend', desc: 'Reach 60+ chemistry.' },
+  { id: 'streak3', icon: '⚡', name: 'On Fire', desc: 'Hit a 3-run 7–0 streak.' },
+];
+function loadJSON(k, def) { try { return JSON.parse(localStorage.getItem(k)) || def; } catch (e) { return def; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function recordRun(run) {
+  const h = loadJSON(HIST_KEY, []);
+  h.unshift(run);
+  saveJSON(HIST_KEY, h.slice(0, 25));
+}
+function unlock(ids) {
+  const have = new Set(loadJSON(ACH_KEY, []));
+  let changed = false, fresh = [];
+  ids.forEach(id => { if (!have.has(id)) { have.add(id); changed = true; fresh.push(id); } });
+  if (changed) saveJSON(ACH_KEY, [...have]);
+  return fresh;
+}
+function checkAchievements(run) {
+  const got = [];
+  if (run.champion) got.push('first_cup');
+  if (run.flawless) got.push('first_seven');
+  if (run.flawless && run.ga === 0) got.push('clean_sweep');
+  if (run.gf >= 20) got.push('goal_glut');
+  if (run.champion && run.ovr < 83) got.push('giant_killer');
+  if (run.flawless && run.mode === 'almanac') got.push('almanac_ace');
+  if (run.flawless && run.diff === 'Hard') got.push('hard_man');
+  if (run.chem >= 60) got.push('chemist');
+  if (stats.streak >= 3) got.push('streak3');
+  return unlock(got);
+}
+
+/* =====================================================
+   STATS / ACHIEVEMENTS MODAL
+   ===================================================== */
+function openStats() {
+  const h = loadJSON(HIST_KEY, []), have = new Set(loadJSON(ACH_KEY, []));
+  $('statsSummary').innerHTML =
+    `<div class="ss-cell"><b>${stats.sevens}</b><span>perfect 7–0s</span></div>
+     <div class="ss-cell"><b>${stats.streak}</b><span>current streak</span></div>
+     <div class="ss-cell"><b>${stats.best}</b><span>best streak</span></div>
+     <div class="ss-cell"><b>${h.length}</b><span>runs played</span></div>`;
+  $('achGrid').innerHTML = ACHIEVEMENTS.map(a => {
+    const on = have.has(a.id);
+    return `<div class="ach ${on ? 'on' : 'off'}" title="${a.desc}">
+      <span class="ach-ic">${on ? a.icon : '🔒'}</span>
+      <span class="ach-tx"><b>${a.name}</b><small>${a.desc}</small></span></div>`;
+  }).join('');
+  $('histList').innerHTML = h.length
+    ? h.map(r => `<div class="hist-row ${r.cls}">
+        <span class="hr-badge">${r.badge}</span>
+        <span class="hr-meta">${r.formation} · ${r.style} · ${r.diff}${r.mode === 'almanac' ? ' · Almanac' : ''}</span>
+        <span class="hr-rec">${r.wins}W ${r.draws}D ${r.losses}L · ${r.gf}–${r.ga}</span></div>`).join('')
+    : '<div class="hist-empty">No runs yet — go win something.</div>';
+  $('statsModal').hidden = false; document.body.classList.add('modal-open');
+}
+function closeStats() { $('statsModal').hidden = true; document.body.classList.remove('modal-open'); }
+
+/* =====================================================
+   SHARE AS IMAGE — canvas result card
+   ===================================================== */
+function resultMeta() {
+  const champion = !sim.eliminated && sim.results.length >= sim.fixtures.length;
+  const flawless = champion && sim.wins === 7 && sim.losses === 0 && sim.draws === 0;
+  const title = flawless ? '7–0' : champion ? 'CHAMPIONS' : roundShort(sim.elimRound);
+  const sub = flawless ? 'FLAWLESS CHAMPIONS' : champion ? 'World Champions' : 'Knocked out';
+  return { champion, flawless, title, sub };
+}
+function drawShareCard() {
+  const cv = $('shareCanvas'), x = cv.getContext('2d');
+  const W = cv.width, H = cv.height, m = resultMeta();
+  // bg
+  const bg = x.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0c1530'); bg.addColorStop(1, '#05070f');
+  x.fillStyle = bg; x.fillRect(0, 0, W, H);
+  x.strokeStyle = 'rgba(39,255,158,.25)'; x.lineWidth = 6; x.strokeRect(28, 28, W - 56, H - 56);
+  const cx = W / 2;
+  x.textAlign = 'center';
+  // kicker
+  x.fillStyle = '#27ff9e'; x.font = '600 30px Oswald, Impact, sans-serif';
+  x.fillText('WORLD CUP · DREAM TEAM', cx, 120);
+  // big title
+  const gold = x.createLinearGradient(0, 150, 0, 420);
+  gold.addColorStop(0, '#fff4cc'); gold.addColorStop(.5, '#ffd24a'); gold.addColorStop(1, '#a9760f');
+  x.fillStyle = gold;
+  x.font = '700 ' + (m.flawless ? '300px' : '170px') + ' Teko, Impact, sans-serif';
+  x.fillText(m.title, cx, m.flawless ? 400 : 360);
+  x.fillStyle = '#eef3ff'; x.font = '600 56px Oswald, Impact, sans-serif';
+  x.fillText(m.sub.toUpperCase(), cx, 470);
+  // setup line
+  x.fillStyle = '#9fb0d6'; x.font = '400 34px Sora, sans-serif';
+  x.fillText(`${state.formationKey} · ${STYLES[state.styleIdx]} · ${DIFF[state.diffIdx].name} · OVR ${sim.me.ovr} · CHEM ${sim.me.chem}`, cx, 545);
+  // match rows
+  let y = 640; const rowH = 78;
+  sim.results.forEach((r) => {
+    const col = r.outcome === 'win' ? '#27ff9e' : r.outcome === 'draw' ? '#ffc83a' : '#ff5d6c';
+    x.textAlign = 'left'; x.fillStyle = '#eef3ff'; x.font = '500 38px Sora, sans-serif';
+    x.fillText(r.fx.label, 90, y);
+    x.textAlign = 'right'; x.fillStyle = col; x.font = '600 46px Teko, sans-serif';
+    x.fillText(`${r.gf}–${r.ga}  ${r.fx.opp.f}`, W - 90, y);
+    y += rowH;
+  });
+  // record + footer
+  x.textAlign = 'center';
+  x.fillStyle = '#eef3ff'; x.font = '600 44px Teko, sans-serif';
+  x.fillText(`${sim.wins}W · ${sim.draws}D · ${sim.losses}L     GOALS ${sim.gf}–${sim.ga}`, cx, y + 30);
+  x.fillStyle = '#67769f'; x.font = '400 28px Sora, sans-serif';
+  x.fillText('play 7–0 Dream Team', cx, H - 60);
+  return cv;
+}
+function shareImage() {
+  let cv;
+  try { cv = drawShareCard(); } catch (e) { toast('Could not build image'); return; }
+  cv.toBlob((blob) => {
+    if (!blob) { toast('Image export failed'); return; }
+    const file = new File([blob], '7-0-dream-team.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: '7–0 Dream Team' }).catch(() => {});
+    } else {
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = '7-0-dream-team.png'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast('Image downloaded');
+    }
+  }, 'image/png');
+}
+
 function toSetup() { cancelAnim(); show('screen-setup'); }
 
 /* ---- how-to-play modal ---- */
@@ -794,6 +1045,22 @@ function init() {
   $('howModal').addEventListener('click', (e) => { if (e.target === $('howModal')) closeHelp(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('howModal').hidden) closeHelp(); });
   try { if (!localStorage.getItem(HELP_SEEN)) openHelp(); } catch (e) {}
+
+  // sound toggle
+  setMuted(muted);
+  $('btnMute').addEventListener('click', () => { setMuted(!muted); if (!muted) sfx('place'); });
+
+  // share image + stats
+  $('btnShareImg').addEventListener('click', shareImage);
+  $('btnStats').addEventListener('click', openStats);
+  $('statsClose').addEventListener('click', closeStats);
+  $('statsModal').addEventListener('click', (e) => { if (e.target === $('statsModal')) closeStats(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('statsModal').hidden) closeStats(); });
+
+  // PWA service worker (offline / installable)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
